@@ -1,0 +1,10 @@
+SYSTEM|Booting Amnesys_OS v4.0...|0|50|0.1|0|0|0
+SYSTEM|User: Unit 734_T detected.|0|50|0.1|0|0|0
+MC|...another night shift.|0|2|6|0|1|0
+MC|The apartment is quiet. Too quiet.|0|3|5|2|1|0
+SYSTEM|Incoming Priority Ticket.|0|2|6|0|1|0
+MC|Priority? For me?|0|2|4|0|1|0
+CHOICE|Check the ticket?|Open it.|Ignore it for now.|0|2|4|0|1|0
+MC|Alright. Let's see what they want.|0|2|3|0|1|0
+MC|Logging into the terminal...|-2|2|2|0|1|0
+SYSTEM|Connection established.|0|50|0.1|0|0|0
