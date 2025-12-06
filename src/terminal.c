@@ -1,62 +1,54 @@
+#include "shared.h" 
 #include "terminal.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h> // Required for malloc/atoi
 
 static Email inbox[MAX_EMAILS];
 static int selectedEmailIndex = 0;
 
-// --- FILE LOADING SYSTEM ---
-Email LoadEmailFromFile(const char* filename) {
-    Email newEmail = {0}; 
-    newEmail.sender = strdup("UNKNOWN SENDER");
-    newEmail.subject = strdup("NO SUBJECT");
-    newEmail.body = strdup("No data.");
-    newEmail.isRead = false;
-    newEmail.isMissionTrigger = false;
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        newEmail.sender = "SYSTEM ERROR";
-        newEmail.subject = "FILE NOT FOUND";
-        newEmail.body = "Error loading data.";
-        return newEmail;
+// HELPER: Loads a single email file
+void LoadEmailFromFile(int index, const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        printf("ERROR: Could not load %s\n", filename);
+        strcpy(inbox[index].sender, "ERROR");
+        strcpy(inbox[index].subject, "FILE NOT FOUND");
+        return;
     }
 
-    char buffer[256];
-    if (fgets(buffer, 256, file)) {
-        buffer[strcspn(buffer, "\n")] = 0;
-        newEmail.sender = strdup(buffer); 
+    char line[256];
+
+    // 1. Sender
+    if (fgets(line, sizeof(line), file)) {
+        line[strcspn(line, "\r\n")] = 0; // Strip newline
+        strcpy(inbox[index].sender, line);
     }
-    if (fgets(buffer, 256, file)) {
-        buffer[strcspn(buffer, "\n")] = 0;
-        newEmail.subject = strdup(buffer);
-    }
-    if (fgets(buffer, 256, file)) {
-        newEmail.isMissionTrigger = (atoi(buffer) == 1);
+    
+    // 2. Subject
+    if (fgets(line, sizeof(line), file)) {
+        line[strcspn(line, "\r\n")] = 0;
+        strcpy(inbox[index].subject, line);
     }
 
-    char *bodyBuffer = (char*)malloc(1024); 
-    bodyBuffer[0] = '\0'; 
-    while (fgets(buffer, 256, file)) {
-        strcat(bodyBuffer, buffer); 
+    // 3. Is Mission Trigger? (0 or 1)
+    if (fgets(line, sizeof(line), file)) {
+        inbox[index].isMissionTrigger = (line[0] == '1');
     }
-    newEmail.body = bodyBuffer;
-    newEmail.isRead = false;
 
+    // 4. Body (Read remaining lines)
+    inbox[index].body[0] = '\0'; // Clear body
+    while (fgets(line, sizeof(line), file)) {
+        strcat(inbox[index].body, line);
+    }
+
+    inbox[index].isRead = false;
     fclose(file);
-    return newEmail;
 }
 
-// --- THE FIX IS HERE ---
-// Ensure this matches the header: void InitTerminal(int episodeID)
 void InitTerminal(int episodeID) {
-    char filepath[64];
-
-    for (int i = 0; i < MAX_EMAILS; i++) {
-        // Load "assets/ep1_email_0.txt", etc.
-        sprintf(filepath, "assets/ep%d_email_%d.txt", episodeID, i);
-        inbox[i] = LoadEmailFromFile(filepath);
-    }
+    // Load the files from the assets folder
+    // Note: Paths are relative to where you run the .exe
+    LoadEmailFromFile(0, "assets/ep1_email_0.txt");
+    LoadEmailFromFile(1, "assets/ep1_email_1.txt");
+    LoadEmailFromFile(2, "assets/ep1_email_2.txt");
 }
 
 void UpdateDrawTerminal(GameState *currentState, bool *missionUnlocked) {

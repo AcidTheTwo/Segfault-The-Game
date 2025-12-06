@@ -1,37 +1,52 @@
+#include "shared.h"  
 #include "dive.h"
+#include <stdio.h>   
+
+extern void LoadEpisode1(MemoryBlock *glitches);
+extern void DrawEpisode1Room(void);
 
 // --- STATE VARIABLES ---
 static MemoryBlock glitches[MAX_GLITCHES];
 static int selectedGlitchIndex = -1;
+static int currentEpisodeID = 1;
 
-// NEW: Track the current episode so we know which room to draw
-static int currentEpisodeID = 1; 
+// MOVEMENT & CUTSCENE VARIABLES
+static Vector3 mcPosition = {0, 0, 10.0f}; 
+static Vector3 mcTargetPos = {0, 0, 0};
+static float walkProgress = 0.0f; 
 
-// Transition Variables
-static Vector3 camStartPos, camEndPos;
-static float transitProgress = 0.0f;
+// TRANSITION VARIABLES
+static float exitProgress = 0.0f; // New variable for the exit fade
 
-// --- SHARED VISUALS ---
+// QTE VARIABLES
+static float qteProgress = 0.0f;   
+static float qteSpeed = 1.5f;      
+static float qteZoneStart = 0.7f;  
+static float qteZoneEnd = 0.9f;    
+static bool qteFailed = false;
 
-// Helper: Renders the glitch effect (Wireframe Cube + Lidar Dots)
-// This logic is shared across all episodes.
+// --- VISUALS ---
+
+void DrawMC(Vector3 pos) {
+    DrawCapsule((Vector3){pos.x, pos.y + 0.5f, pos.z}, (Vector3){pos.x, pos.y + 2.0f, pos.z}, 0.4f, 8, 8, Fade(CYAN, 0.8f));
+    DrawSphereWires((Vector3){pos.x, pos.y + 1.8f, pos.z}, 0.3f, 8, 8, WHITE); 
+}
+
 void DrawGlitch(MemoryBlock *b) {
-    // 1. Growth (Restored State)
     if (b->growthProgress > 0) {
-        float size = 1.0f * EaseOut(b->growthProgress); // Size is 1.0 to match furniture props
+        float size = 1.0f * EaseOut(b->growthProgress);
         DrawCubeWires(b->position, size, size, size, LIME);
         DrawCube(b->position, size*0.9f, size*0.9f, size*0.9f, Fade(LIME, 0.2f));
     }
-    
-    // 2. Corruption (Lidar State)
     if (b->corruptionLevel > 0) {
         for(int i=0; i<300; i++) {
             Vector3 p = b->position;
-            float s = b->corruptionLevel * 0.8f; // Tighter spread for props
+            float s = b->corruptionLevel * 0.8f;
             p.x += GetRandomFloat(-s, s); 
             p.y += GetRandomFloat(-s, s); 
             p.z += GetRandomFloat(-s, s);
-            DrawPoint3D(p, (b->corruptionLevel > 0.5f)? RED : ORANGE);
+            Color color = (b->corruptionLevel > 0.5f) ? RED : ORANGE;
+            DrawPoint3D(p, color);
         }
     }
 }
@@ -40,126 +55,160 @@ void DrawGlitch(MemoryBlock *b) {
 
 void InitDive(int episodeNumber) {
     currentEpisodeID = episodeNumber;
-    
-    // Select the Level Data based on ID
-    if (currentEpisodeID == 1) {
-        LoadEpisode1(glitches);
-    }
-    // Future: else if (currentEpisodeID == 2) LoadEpisode2(glitches);
+    if (currentEpisodeID == 1) LoadEpisode1(glitches);
+    mcPosition = (Vector3){0, 0, 10.0f}; 
+    exitProgress = 0.0f;
 }
 
 // --- UPDATE & DRAW ---
 
 void UpdateDrawDive(GameState *currentState, Camera *camera) {
     
-    // 1. TRANSITION LOGIC (Camera movement)
-    if (*currentState == STATE_TRANSIT_TO_VIEW || *currentState == STATE_TRANSIT_TO_INSPECT) {
-        if (transitProgress == 0.0f) { 
-            camStartPos = camera->position;
-            
-            if (*currentState == STATE_TRANSIT_TO_VIEW) {
-                // Fly to Satellite View (High up)
-                camEndPos = (Vector3){0, 15, 0.1f}; 
-            } else {
-                // Fly to Object (Zoom in)
-                Vector3 target = glitches[selectedGlitchIndex].position;
-                camEndPos = (Vector3){target.x, target.y + 3.0f, target.z + 3.0f};
-            }
-        }
-        
-        transitProgress += 1.0f * GetFrameTime(); // Speed = 1.0 (1 second duration)
-        camera->position = Vector3Lerp(camStartPos, camEndPos, transitProgress);
-        
-        // Handle Look Target
-        if (*currentState == STATE_TRANSIT_TO_VIEW) camera->target = (Vector3){0,0,0};
-        else camera->target = glitches[selectedGlitchIndex].position;
-
-        if (transitProgress >= 1.0f) {
-            transitProgress = 0.0f;
-            *currentState = (*currentState == STATE_TRANSIT_TO_VIEW) ? STATE_VIEW : STATE_INSPECT;
+    // 1. FLY-IN TRANSITION 
+    if (*currentState == STATE_TRANSIT_TO_VIEW) {
+        camera->position = Vector3Lerp(camera->position, (Vector3){0, 15, 0.1f}, 0.05f);
+        camera->target = (Vector3){0,0,0};
+        if (Vector3Distance(camera->position, (Vector3){0, 15, 0.1f}) < 0.5f) {
+            *currentState = STATE_VIEW;
         }
     }
     
-    // 2. VIEW MODE LOGIC (Satellite Selection)
+    // 2. SATELLITE VIEW 
     else if (*currentState == STATE_VIEW) {
-        // Zoom
-        if (GetMouseWheelMove() != 0) {
-            camera->position.y -= GetMouseWheelMove() * 2.0f;
-            if (camera->position.y < 5.0f) camera->position.y = 5.0f;
+        // --- NEW WIN CONDITION LOGIC ---
+        int fixedCount = 0;
+        for(int i=0; i<MAX_GLITCHES; i++) {
+            if (glitches[i].corruptionLevel <= 0) fixedCount++;
         }
         
-        // Check Win Condition
-        int fixed = 0;
-        for(int i=0; i<MAX_GLITCHES; i++) if(glitches[i].corruptionLevel <= 0) fixed++;
-        if(fixed == MAX_GLITCHES) *currentState = STATE_COMPLETE;
+        if(fixedCount == MAX_GLITCHES) {
+            // Instead of STATE_COMPLETE, we start the exit sequence
+            *currentState = STATE_EXITING_SIMULATION;
+            exitProgress = 0.0f;
+        }
 
-        // Select Glitch
+        // WASD Movement
+        float speed = 10.0f * GetFrameTime();
+        if (IsKeyDown(KEY_W)) { camera->position.z -= speed; camera->target.z -= speed; }
+        if (IsKeyDown(KEY_S)) { camera->position.z += speed; camera->target.z += speed; }
+        if (IsKeyDown(KEY_A)) { camera->position.x -= speed; camera->target.x -= speed; }
+        if (IsKeyDown(KEY_D)) { camera->position.x += speed; camera->target.x += speed; }
+
+        float wheel = GetMouseWheelMove();
+        if (wheel != 0) {
+            camera->position.y -= wheel * 2.0f;
+            if (camera->position.y < 5.0f) camera->position.y = 5.0f;
+            if (camera->position.y > 30.0f) camera->position.y = 30.0f;
+        }
+
+        // Selection Logic
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             Ray ray = GetScreenToWorldRay(GetMousePosition(), *camera);
             for(int i=0; i<MAX_GLITCHES; i++) {
-                if (!glitches[i].isActive) continue;
+                if (!glitches[i].isActive || glitches[i].corruptionLevel <= 0) continue;
 
                 Vector3 pos = glitches[i].position;
-                BoundingBox box = { (Vector3){pos.x-1, pos.y-1, pos.z-1}, (Vector3){pos.x+1, pos.y+1, pos.z+1} };
+                BoundingBox box = { 
+                    (Vector3){pos.x-1, pos.y-1, pos.z-1}, 
+                    (Vector3){pos.x+1, pos.y+1, pos.z+1} 
+                };
                 
                 if (GetRayCollisionBox(ray, box).hit) {
                     selectedGlitchIndex = i;
-                    *currentState = STATE_TRANSIT_TO_INSPECT;
+                    *currentState = STATE_CUTSCENE_WALK;
+                    walkProgress = 0.0f;
+                    mcTargetPos = glitches[i].position;
+                    mcTargetPos.z += 2.0f; 
+                    mcTargetPos.y = 0.0f; 
                 }
             }
         }
     }
-    
-    // 3. INSPECT MODE LOGIC (Repairing)
-    else if (*currentState == STATE_INSPECT) {
-        MemoryBlock *current = &glitches[selectedGlitchIndex];
 
-        // Manual Repair (Spacebar)
-        if (IsKeyDown(KEY_SPACE) && current->corruptionLevel > 0) 
-            current->corruptionLevel -= 0.01f;
-        
-        // Auto-Grow Animation
-        if (current->corruptionLevel <= 0) {
-            current->corruptionLevel = 0;
-            if(current->growthProgress < 1) current->growthProgress += 0.05f;
+    // 3. CUTSCENE: WALK TO GLITCH
+    else if (*currentState == STATE_CUTSCENE_WALK) {
+        walkProgress += 0.5f * GetFrameTime(); 
+        mcPosition = Vector3Lerp(mcPosition, mcTargetPos, 0.05f); 
+        camera->position = (Vector3){ mcPosition.x + 3.0f, mcPosition.y + 4.0f, mcPosition.z + 4.0f };
+        camera->target = mcPosition;
+
+        if (Vector3Distance(mcPosition, mcTargetPos) < 0.5f) {
+            *currentState = STATE_QTE;
+            qteProgress = 0.0f;
+            qteFailed = false;
+        }
+    }
+
+    // 4. QTE MODE 
+    else if (*currentState == STATE_QTE) {
+        qteProgress += qteSpeed * GetFrameTime();
+        if (qteProgress > 1.2f) { 
+             qteProgress = 0.0f; 
+             qteFailed = true; 
         }
 
-        // Exit (Right Click)
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) *currentState = STATE_TRANSIT_TO_VIEW;
+        if (IsKeyPressed(KEY_SPACE)) {
+            if (qteProgress >= qteZoneStart && qteProgress <= qteZoneEnd) {
+                glitches[selectedGlitchIndex].corruptionLevel = 0; 
+                glitches[selectedGlitchIndex].growthProgress = 0.05f; 
+                *currentState = STATE_VIEW; 
+                camera->position = (Vector3){0, 15, 0.1f};
+                camera->target = (Vector3){0,0,0};
+            } else {
+                qteFailed = true;
+                qteProgress = 0.0f; 
+            }
+        }
+    }
+
+    // 5. EXITING SIMULATION (NEW TRANSITION)
+    else if (*currentState == STATE_EXITING_SIMULATION) {
+        exitProgress += GetFrameTime();
+        
+        // Pull camera up rapidly
+        camera->position.y += 20.0f * GetFrameTime();
+        camera->target = Vector3Lerp(camera->target, (Vector3){0,0,0}, 0.1f);
+        
+        // If we have faded out enough (2.0 seconds), finish
+        if (exitProgress > 2.0f) {
+            *currentState = STATE_COMPLETE;
+        }
     }
 
     // --- DRAW PHASE ---
     BeginMode3D(*camera);
-        
-        // A. Draw the Environment
-        if (currentEpisodeID == 1) {
-            DrawEpisode1Room(); // Defined in ep1.c
-        }
-        // else if (currentEpisodeID == 2) DrawEpisode2Room();
-
-        // B. Draw the Glitches
+        if (currentEpisodeID == 1) DrawEpisode1Room();
+        DrawMC(mcPosition);
         for(int i=0; i<MAX_GLITCHES; i++) {
             if (glitches[i].isActive) DrawGlitch(&glitches[i]);
         }
-        
     EndMode3D();
     
     // --- UI OVERLAY ---
     if (*currentState == STATE_VIEW) {
-        DrawText("SECTOR: LIVING_ROOM", 20, 20, 20, GREEN);
-        DrawText("CLICK RED ZONES TO INSPECT", 20, 50, 20, WHITE);
+        DrawText("SATELLITE LINK ACTIVE", 20, 20, 20, GREEN);
+        DrawText("WASD TO MOVE - CLICK RED ZONES TO DEPLOY", 20, 50, 20, WHITE);
     }
-    if (*currentState == STATE_INSPECT) {
-        DrawText("OBJECT INTERFACE", 20, 20, 20, ORANGE);
-        DrawText("HOLD [SPACE] TO STABILIZE", 20, 50, 20, WHITE);
+    else if (*currentState == STATE_CUTSCENE_WALK) {
+        DrawText("DEPLOYING GHOST UNIT...", 500, 600, 30, Fade(CYAN, 0.8f));
+    }
+    else if (*currentState == STATE_QTE) {
+        DrawText("STABILIZE MEMORY", 450, 500, 20, WHITE);
+        DrawRectangle(400, 550, 400, 30, DARKGRAY);
+        int barW = 400;
+        DrawRectangle(400 + (int)(barW * qteZoneStart), 550, (int)(barW * (qteZoneEnd - qteZoneStart)), 30, GREEN);
+        int markerX = 400 + (int)(barW * qteProgress);
+        if (markerX > 400 + barW) markerX = 400 + barW; 
+        DrawRectangle(markerX, 540, 5, 50, WHITE);
         
-        // Health Bar
-        float health = glitches[selectedGlitchIndex].corruptionLevel;
-        DrawRectangle(20, 80, 200, 10, DARKGRAY);
-        DrawRectangle(20, 80, (int)(200 * health), 10, RED);
+        if (qteFailed) DrawText("SYNC FAILED - RETRY", 500, 600, 20, RED);
+        else DrawText("[PRESS SPACE IN GREEN ZONE]", 480, 600, 20, LIME);
     }
-    if (*currentState == STATE_COMPLETE) {
-        DrawText("MEMORY RESTORED", 400, 300, 40, LIME);
-        DrawText("[PRESS ENTER]", 500, 350, 20, GREEN);
+    else if (*currentState == STATE_EXITING_SIMULATION) {
+        // Draw FADE OUT effect
+        float alpha = exitProgress / 2.0f; 
+        if (alpha > 1.0f) alpha = 1.0f;
+        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(DARKGREEN, alpha));
+        DrawText("DISCONNECTING...", 500, 350, 30, Fade(WHITE, alpha));
     }
 }
