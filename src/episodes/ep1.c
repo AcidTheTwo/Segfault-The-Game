@@ -1,35 +1,8 @@
 #include "../shared.h"
 
-// --- LEVEL DATA: THE BIRTHDAY PARTY ---
+// Note: LoadEpisode1 is removed because we now load data from "assets/ep1_level.txt"
 
-void LoadEpisode1(MemoryBlock *glitches) {
-    // 1. The Cake (Center Table)
-    glitches[0] = (MemoryBlock){ 
-        .position = {0.0f, 1.5f, 0.0f}, 
-        .corruptionLevel = 1.0f, 
-        .growthProgress = 0.0f,
-        .isActive = true 
-    };
-
-    // 2. The Presents (Side Sofa)
-    glitches[1] = (MemoryBlock){ 
-        .position = {-4.0f, 1.0f, 2.0f}, 
-        .corruptionLevel = 1.0f, 
-        .growthProgress = 0.0f,
-        .isActive = true 
-    };
-
-    // 3. The "Missing Person" (Standing behind cake)
-    glitches[2] = (MemoryBlock){ 
-        .position = {1.5f, 2.5f, 1.0f}, 
-        .corruptionLevel = 1.0f, 
-        .growthProgress = 0.0f,
-        .isActive = true 
-    };
-}
-
-// Function 2: Draw the Room (Code-Based Placeholder)
-// This builds a "Wireframe Room" so you don't need a .glb file yet.
+// Function: Draw the Room (Environment Only)
 void DrawEpisode1Room(void) {
     
     // 1. The Floor (Solid Base)
@@ -45,7 +18,6 @@ void DrawEpisode1Room(void) {
     DrawCubeWires((Vector3){6.0f, 2.5f, 0.0f}, 0.0f, 5.0f, 12.0f, DARKGREEN);
 
     // 3. The Furniture (Bright Green Wireframes)
-    
     // Center Table
     DrawCubeWires((Vector3){0, 0.5f, 0}, 3.0f, 1.0f, 2.0f, GREEN);
     

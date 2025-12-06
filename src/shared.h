@@ -5,8 +5,8 @@
 #include "raymath.h"
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h> // Added for string manip
-#include <stdlib.h> // Added for parsing numbers
+#include <string.h> 
+#include <stdlib.h> 
 
 // --- CONFIG ---
 #define MAX_GLITCHES 3
@@ -17,14 +17,18 @@
 
 // --- STATES ---
 typedef enum GameState {
+    STATE_OPTIONS,
     STATE_TERMINAL,          
     STATE_READING_EMAIL,     
     STATE_STORY,             
-    STATE_TRANSIT_TO_VIEW,   
-    STATE_VIEW,              
-    STATE_CUTSCENE_WALK,     
-    STATE_QTE,               
-    STATE_EXITING_SIMULATION,
+    
+    STATE_TRANSIT_TO_VIEW,      // Fly IN
+    STATE_VIEW,                 // Satellite Mode
+    STATE_CUTSCENE_WALK,        // MC Walk
+    STATE_QTE,                  // Repair
+    STATE_TRANSIT_BACK_TO_VIEW, // Fly OUT <--- NEW!
+    
+    STATE_EXITING_SIMULATION,   // Mission Complete fade
     STATE_COMPLETE           
 } GameState;
 
@@ -37,11 +41,10 @@ typedef struct MemoryBlock {
     float growthProgress;  
 } MemoryBlock;
 
-// UPDATED: Now uses arrays so we can load text from files
 typedef struct Email {
     char sender[64];
     char subject[64];
-    char body[512]; // Enough space for a long email
+    char body[512]; 
     bool isRead;
     bool isMissionTrigger;
 } Email;

@@ -9,7 +9,6 @@ typedef struct ScriptLine {
     LineType type;
     char speaker[32];
     char text[128];
-    // We only support Dialogue in the file loader for now
     Vector3 camPos;
     Vector3 camTarget;
 } ScriptLine;
@@ -20,14 +19,24 @@ static int currentLineIndex = 0;
 static Camera camera = { 0 };
 
 // --- VISUALS ---
-void DrawActor(Vector3 pos, Color color) {
-    for(int i=0; i<50; i++) {
-        Vector3 p = pos;
-        p.y += GetRandomFloat(0, 1.8f);
-        p.x += GetRandomFloat(-0.2f, 0.2f);
-        p.z += GetRandomFloat(-0.2f, 0.2f);
-        DrawPoint3D(p, color);
-    }
+
+// UPDATED: Now draws the "Ghost Tech" model (Cyan Capsule)
+void DrawActor(Vector3 pos) {
+    // 1. The Body (Cyan Capsule with Fade)
+    // We add +0.5 to Y so it floats slightly above the ground grid
+    DrawCapsule(
+        (Vector3){pos.x, pos.y + 0.5f, pos.z}, 
+        (Vector3){pos.x, pos.y + 2.0f, pos.z}, 
+        0.4f, 8, 8, 
+        Fade(CYAN, 0.8f)
+    );
+    
+    // 2. The Head (Wireframe Visor)
+    DrawSphereWires(
+        (Vector3){pos.x, pos.y + 1.8f, pos.z}, 
+        0.3f, 8, 8, 
+        WHITE
+    );
 }
 
 void DrawCinematicStage() {
@@ -53,8 +62,6 @@ void LoadScriptFromFile(const char* filename) {
     totalLines = 0;
 
     while (fgets(line, sizeof(line), file) && totalLines < MAX_SCRIPT_LINES) {
-        // FORMAT: Speaker|Text|CX|CY|CZ|TX|TY|TZ
-        
         ScriptLine* sl = &script[totalLines];
         sl->type = LINE_DIALOGUE;
 
@@ -67,14 +74,14 @@ void LoadScriptFromFile(const char* filename) {
         token = strtok(NULL, "|");
         if (token) strcpy(sl->text, token);
 
-        // 3. Camera Position (X, Y, Z)
+        // 3. Camera Position
         float cx=0, cy=0, cz=0;
         token = strtok(NULL, "|"); if(token) cx = strtof(token, NULL);
         token = strtok(NULL, "|"); if(token) cy = strtof(token, NULL);
         token = strtok(NULL, "|"); if(token) cz = strtof(token, NULL);
         sl->camPos = (Vector3){cx, cy, cz};
 
-        // 4. Camera Target (X, Y, Z)
+        // 4. Camera Target
         float tx=0, ty=0, tz=0;
         token = strtok(NULL, "|"); if(token) tx = strtof(token, NULL);
         token = strtok(NULL, "|"); if(token) ty = strtof(token, NULL);
@@ -93,10 +100,8 @@ void InitStory(int episodeID) {
     
     currentLineIndex = 0;
     
-    // Load the script file
     LoadScriptFromFile("assets/ep1_script.txt");
 
-    // Initialize Camera to first frame
     if (totalLines > 0) {
         camera.position = script[0].camPos;
         camera.target = script[0].camTarget;
@@ -119,7 +124,10 @@ bool UpdateDrawStory(GameState *currentState) {
     // Draw
     BeginMode3D(camera);
         DrawCinematicStage();
-        DrawActor((Vector3){current->camTarget.x, 0, current->camTarget.z}, GREEN);
+        
+        // UPDATED CALL: Removed the Color argument
+        DrawActor((Vector3){current->camTarget.x, 0, current->camTarget.z});
+        
     EndMode3D();
 
     // UI

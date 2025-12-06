@@ -1,8 +1,10 @@
 #include "shared.h"  
 #include "dive.h"
-#include <stdio.h>   
+#include <stdio.h>
+#include <stdlib.h> // For atof/strtof
 
-extern void LoadEpisode1(MemoryBlock *glitches);
+// --- EXTERNAL VISUALS ---
+// We removed LoadEpisode1 because we load from text now!
 extern void DrawEpisode1Room(void);
 
 // --- STATE VARIABLES ---
@@ -16,7 +18,7 @@ static Vector3 mcTargetPos = {0, 0, 0};
 static float walkProgress = 0.0f; 
 
 // TRANSITION VARIABLES
-static float exitProgress = 0.0f; // New variable for the exit fade
+static float exitProgress = 0.0f; 
 
 // QTE VARIABLES
 static float qteProgress = 0.0f;   
@@ -51,11 +53,47 @@ void DrawGlitch(MemoryBlock *b) {
     }
 }
 
+// --- LEVEL LOADER ---
+
+void LoadLevelFromFile(const char* filename) {
+    // Reset all glitches first
+    for(int i=0; i<MAX_GLITCHES; i++) glitches[i].isActive = false;
+
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        printf("ERROR: Level file not found: %s\n", filename);
+        return;
+    }
+
+    char line[128];
+    int count = 0;
+
+    // Format: X Y Z | Corruption
+    while (fgets(line, sizeof(line), file) && count < MAX_GLITCHES) {
+        float x, y, z, corr;
+        // Parse the line
+        if (sscanf(line, "%f %f %f | %f", &x, &y, &z, &corr) == 4) {
+            glitches[count].position = (Vector3){x, y, z};
+            glitches[count].corruptionLevel = corr;
+            glitches[count].growthProgress = 0.0f;
+            glitches[count].isActive = true;
+            count++;
+        }
+    }
+    fclose(file);
+    printf("Level Loaded: %d glitches found.\n", count);
+}
+
 // --- INIT ---
 
 void InitDive(int episodeNumber) {
     currentEpisodeID = episodeNumber;
-    if (currentEpisodeID == 1) LoadEpisode1(glitches);
+    
+    // LOAD FROM FILE instead of Hardcoded C function
+    if (currentEpisodeID == 1) {
+        LoadLevelFromFile("assets/ep1_level.txt");
+    }
+    
     mcPosition = (Vector3){0, 0, 10.0f}; 
     exitProgress = 0.0f;
 }
@@ -75,33 +113,27 @@ void UpdateDrawDive(GameState *currentState, Camera *camera) {
     
     // 2. SATELLITE VIEW 
     else if (*currentState == STATE_VIEW) {
-        // --- NEW WIN CONDITION LOGIC ---
         int fixedCount = 0;
         for(int i=0; i<MAX_GLITCHES; i++) {
-            if (glitches[i].corruptionLevel <= 0) fixedCount++;
+            if (glitches[i].isActive && glitches[i].corruptionLevel <= 0) fixedCount++;
         }
+        // Count active glitches only
+        int totalActive = 0;
+        for(int i=0; i<MAX_GLITCHES; i++) if(glitches[i].isActive) totalActive++;
         
-        if(fixedCount == MAX_GLITCHES) {
-            // Instead of STATE_COMPLETE, we start the exit sequence
+        if(totalActive > 0 && fixedCount == totalActive) {
             *currentState = STATE_EXITING_SIMULATION;
             exitProgress = 0.0f;
         }
 
-        // WASD Movement
+        // WASD
         float speed = 10.0f * GetFrameTime();
         if (IsKeyDown(KEY_W)) { camera->position.z -= speed; camera->target.z -= speed; }
         if (IsKeyDown(KEY_S)) { camera->position.z += speed; camera->target.z += speed; }
         if (IsKeyDown(KEY_A)) { camera->position.x -= speed; camera->target.x -= speed; }
         if (IsKeyDown(KEY_D)) { camera->position.x += speed; camera->target.x += speed; }
 
-        float wheel = GetMouseWheelMove();
-        if (wheel != 0) {
-            camera->position.y -= wheel * 2.0f;
-            if (camera->position.y < 5.0f) camera->position.y = 5.0f;
-            if (camera->position.y > 30.0f) camera->position.y = 30.0f;
-        }
-
-        // Selection Logic
+        // Selection
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             Ray ray = GetScreenToWorldRay(GetMousePosition(), *camera);
             for(int i=0; i<MAX_GLITCHES; i++) {
@@ -125,7 +157,7 @@ void UpdateDrawDive(GameState *currentState, Camera *camera) {
         }
     }
 
-    // 3. CUTSCENE: WALK TO GLITCH
+    // 3. CUTSCENE
     else if (*currentState == STATE_CUTSCENE_WALK) {
         walkProgress += 0.5f * GetFrameTime(); 
         mcPosition = Vector3Lerp(mcPosition, mcTargetPos, 0.05f); 
@@ -139,52 +171,56 @@ void UpdateDrawDive(GameState *currentState, Camera *camera) {
         }
     }
 
-    // 4. QTE MODE 
+    // 4. QTE
     else if (*currentState == STATE_QTE) {
         qteProgress += qteSpeed * GetFrameTime();
-        if (qteProgress > 1.2f) { 
-             qteProgress = 0.0f; 
-             qteFailed = true; 
-        }
+        if (qteProgress > 1.2f) { qteProgress = 0.0f; qteFailed = true; }
 
         if (IsKeyPressed(KEY_SPACE)) {
             if (qteProgress >= qteZoneStart && qteProgress <= qteZoneEnd) {
                 glitches[selectedGlitchIndex].corruptionLevel = 0; 
                 glitches[selectedGlitchIndex].growthProgress = 0.05f; 
-                *currentState = STATE_VIEW; 
-                camera->position = (Vector3){0, 15, 0.1f};
-                camera->target = (Vector3){0,0,0};
+                *currentState = STATE_TRANSIT_BACK_TO_VIEW; 
             } else {
                 qteFailed = true;
                 qteProgress = 0.0f; 
             }
         }
     }
+    
+    // 5. FLY-OUT
+    else if (*currentState == STATE_TRANSIT_BACK_TO_VIEW) {
+        camera->position = Vector3Lerp(camera->position, (Vector3){0, 15, 0.1f}, 0.05f);
+        camera->target = Vector3Lerp(camera->target, (Vector3){0, 0, 0}, 0.05f);
+        if (Vector3Distance(camera->position, (Vector3){0, 15, 0.1f}) < 0.5f) {
+            *currentState = STATE_VIEW;
+            camera->position = (Vector3){0, 15, 0.1f};
+            camera->target = (Vector3){0, 0, 0};
+        }
+    }
 
-    // 5. EXITING SIMULATION (NEW TRANSITION)
+    // 6. EXIT
     else if (*currentState == STATE_EXITING_SIMULATION) {
         exitProgress += GetFrameTime();
-        
-        // Pull camera up rapidly
         camera->position.y += 20.0f * GetFrameTime();
         camera->target = Vector3Lerp(camera->target, (Vector3){0,0,0}, 0.1f);
-        
-        // If we have faded out enough (2.0 seconds), finish
-        if (exitProgress > 2.0f) {
-            *currentState = STATE_COMPLETE;
-        }
+        if (exitProgress > 2.0f) *currentState = STATE_COMPLETE;
     }
 
     // --- DRAW PHASE ---
     BeginMode3D(*camera);
         if (currentEpisodeID == 1) DrawEpisode1Room();
-        DrawMC(mcPosition);
+        
+        if (*currentState == STATE_CUTSCENE_WALK || *currentState == STATE_QTE || *currentState == STATE_TRANSIT_BACK_TO_VIEW) {
+            DrawMC(mcPosition);
+        }
+
         for(int i=0; i<MAX_GLITCHES; i++) {
             if (glitches[i].isActive) DrawGlitch(&glitches[i]);
         }
     EndMode3D();
     
-    // --- UI OVERLAY ---
+    // UI
     if (*currentState == STATE_VIEW) {
         DrawText("SATELLITE LINK ACTIVE", 20, 20, 20, GREEN);
         DrawText("WASD TO MOVE - CLICK RED ZONES TO DEPLOY", 20, 50, 20, WHITE);
@@ -205,7 +241,6 @@ void UpdateDrawDive(GameState *currentState, Camera *camera) {
         else DrawText("[PRESS SPACE IN GREEN ZONE]", 480, 600, 20, LIME);
     }
     else if (*currentState == STATE_EXITING_SIMULATION) {
-        // Draw FADE OUT effect
         float alpha = exitProgress / 2.0f; 
         if (alpha > 1.0f) alpha = 1.0f;
         DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(DARKGREEN, alpha));
