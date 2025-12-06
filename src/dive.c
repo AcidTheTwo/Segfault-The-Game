@@ -1,10 +1,8 @@
 #include "shared.h"  
 #include "dive.h"
 #include <stdio.h>
-#include <stdlib.h> // For atof/strtof
+#include <stdlib.h> 
 
-// --- EXTERNAL VISUALS ---
-// We removed LoadEpisode1 because we load from text now!
 extern void DrawEpisode1Room(void);
 
 // --- STATE VARIABLES ---
@@ -56,22 +54,16 @@ void DrawGlitch(MemoryBlock *b) {
 // --- LEVEL LOADER ---
 
 void LoadLevelFromFile(const char* filename) {
-    // Reset all glitches first
     for(int i=0; i<MAX_GLITCHES; i++) glitches[i].isActive = false;
 
     FILE* file = fopen(filename, "r");
-    if (!file) {
-        printf("ERROR: Level file not found: %s\n", filename);
-        return;
-    }
+    if (!file) return;
 
     char line[128];
     int count = 0;
 
-    // Format: X Y Z | Corruption
     while (fgets(line, sizeof(line), file) && count < MAX_GLITCHES) {
         float x, y, z, corr;
-        // Parse the line
         if (sscanf(line, "%f %f %f | %f", &x, &y, &z, &corr) == 4) {
             glitches[count].position = (Vector3){x, y, z};
             glitches[count].corruptionLevel = corr;
@@ -81,19 +73,15 @@ void LoadLevelFromFile(const char* filename) {
         }
     }
     fclose(file);
-    printf("Level Loaded: %d glitches found.\n", count);
 }
 
 // --- INIT ---
 
 void InitDive(int episodeNumber) {
     currentEpisodeID = episodeNumber;
-    
-    // LOAD FROM FILE instead of Hardcoded C function
     if (currentEpisodeID == 1) {
         LoadLevelFromFile("assets/ep1_level.txt");
     }
-    
     mcPosition = (Vector3){0, 0, 10.0f}; 
     exitProgress = 0.0f;
 }
@@ -102,7 +90,7 @@ void InitDive(int episodeNumber) {
 
 void UpdateDrawDive(GameState *currentState, Camera *camera) {
     
-    // 1. FLY-IN TRANSITION 
+    // 1. FLY-IN 
     if (*currentState == STATE_TRANSIT_TO_VIEW) {
         camera->position = Vector3Lerp(camera->position, (Vector3){0, 15, 0.1f}, 0.05f);
         camera->target = (Vector3){0,0,0};
@@ -114,12 +102,11 @@ void UpdateDrawDive(GameState *currentState, Camera *camera) {
     // 2. SATELLITE VIEW 
     else if (*currentState == STATE_VIEW) {
         int fixedCount = 0;
-        for(int i=0; i<MAX_GLITCHES; i++) {
-            if (glitches[i].isActive && glitches[i].corruptionLevel <= 0) fixedCount++;
-        }
-        // Count active glitches only
         int totalActive = 0;
-        for(int i=0; i<MAX_GLITCHES; i++) if(glitches[i].isActive) totalActive++;
+        for(int i=0; i<MAX_GLITCHES; i++) if(glitches[i].isActive) {
+            totalActive++;
+            if(glitches[i].corruptionLevel <= 0) fixedCount++;
+        }
         
         if(totalActive > 0 && fixedCount == totalActive) {
             *currentState = STATE_EXITING_SIMULATION;
@@ -135,7 +122,9 @@ void UpdateDrawDive(GameState *currentState, Camera *camera) {
 
         // Selection
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            Ray ray = GetScreenToWorldRay(GetMousePosition(), *camera);
+            // FIX: USE VIRTUAL MOUSE
+            Ray ray = GetScreenToWorldRay(GetVirtualMouse(), *camera);
+            
             for(int i=0; i<MAX_GLITCHES; i++) {
                 if (!glitches[i].isActive || glitches[i].corruptionLevel <= 0) continue;
 

@@ -4,48 +4,28 @@
 static Email inbox[MAX_EMAILS];
 static int selectedEmailIndex = 0;
 
-// HELPER: Loads a single email file
 void LoadEmailFromFile(int index, const char* filename) {
     FILE* file = fopen(filename, "r");
     if (!file) {
-        printf("ERROR: Could not load %s\n", filename);
+        // Fallback if file missing
         strcpy(inbox[index].sender, "ERROR");
-        strcpy(inbox[index].subject, "FILE NOT FOUND");
+        strcpy(inbox[index].subject, "FILE MISSING");
         return;
     }
 
     char line[256];
-
-    // 1. Sender
-    if (fgets(line, sizeof(line), file)) {
-        line[strcspn(line, "\r\n")] = 0; // Strip newline
-        strcpy(inbox[index].sender, line);
-    }
+    if (fgets(line, sizeof(line), file)) { line[strcspn(line, "\r\n")] = 0; strcpy(inbox[index].sender, line); }
+    if (fgets(line, sizeof(line), file)) { line[strcspn(line, "\r\n")] = 0; strcpy(inbox[index].subject, line); }
+    if (fgets(line, sizeof(line), file)) { inbox[index].isMissionTrigger = (line[0] == '1'); }
     
-    // 2. Subject
-    if (fgets(line, sizeof(line), file)) {
-        line[strcspn(line, "\r\n")] = 0;
-        strcpy(inbox[index].subject, line);
-    }
-
-    // 3. Is Mission Trigger? (0 or 1)
-    if (fgets(line, sizeof(line), file)) {
-        inbox[index].isMissionTrigger = (line[0] == '1');
-    }
-
-    // 4. Body (Read remaining lines)
-    inbox[index].body[0] = '\0'; // Clear body
-    while (fgets(line, sizeof(line), file)) {
-        strcat(inbox[index].body, line);
-    }
+    inbox[index].body[0] = '\0';
+    while (fgets(line, sizeof(line), file)) strcat(inbox[index].body, line);
 
     inbox[index].isRead = false;
     fclose(file);
 }
 
 void InitTerminal(int episodeID) {
-    // Load the files from the assets folder
-    // Note: Paths are relative to where you run the .exe
     LoadEmailFromFile(0, "assets/ep1_email_0.txt");
     LoadEmailFromFile(1, "assets/ep1_email_1.txt");
     LoadEmailFromFile(2, "assets/ep1_email_2.txt");
@@ -62,6 +42,11 @@ void UpdateDrawTerminal(GameState *currentState, bool *missionUnlocked) {
             inbox[selectedEmailIndex].isRead = true;
             if (inbox[selectedEmailIndex].isMissionTrigger) *missionUnlocked = true;
         }
+
+        // NEW: Shortcut to Options
+        if (IsKeyPressed(KEY_TAB)) {
+            *currentState = STATE_OPTIONS;
+        }
     }
     else if (*currentState == STATE_READING_EMAIL) {
         if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE)) *currentState = STATE_TERMINAL;
@@ -71,6 +56,7 @@ void UpdateDrawTerminal(GameState *currentState, bool *missionUnlocked) {
     if (*currentState == STATE_TERMINAL) {
         DrawRectangleLines(50, 50, 1180, 620, GREEN);
         DrawText("AMNESYS_OS v4.0", 70, 70, 20, GREEN);
+        DrawText("[TAB] SYSTEM CONFIG", 1000, 70, 20, ORANGE); 
         
         for (int i=0; i<MAX_EMAILS; i++) {
             Color c = (i == selectedEmailIndex) ? LIME : DARKGREEN;

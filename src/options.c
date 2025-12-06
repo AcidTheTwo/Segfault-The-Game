@@ -13,8 +13,6 @@ void SaveSettings() {
         fprintf(file, "%d\n", IsWindowFullscreen() ? 1 : 0);
         
         // Line 2: Maximized (1 or 0)
-        // Note: Raylib doesn't have a direct "IsWindowMaximized" bool that persists 
-        // cleanly across all platforms, but checking the flag works for saving logic.
         fprintf(file, "%d\n", IsWindowMaximized() ? 1 : 0);
         
         fclose(file);
@@ -81,7 +79,9 @@ void UpdateDrawOptions(GameState *currentState) {
     }
 
     // --- DRAW ---
-    DrawRectangleLines(100, 100, GetScreenWidth() - 200, GetScreenHeight() - 200, GREEN);
+    // Note: No BeginDrawing() here because main.c handles the global texture
+    
+    DrawRectangleLines(100, 100, SCREEN_WIDTH - 200, SCREEN_HEIGHT - 200, GREEN);
     DrawText("SYSTEM CONFIGURATION", 120, 120, 20, GREEN);
     
     DrawText("VIDEO SETTINGS:", 150, 200, 20, ORANGE);
@@ -98,10 +98,10 @@ void UpdateDrawOptions(GameState *currentState) {
         DrawText("[M] WINDOW SIZE      (LOCKED IN FULLSCREEN)", 180, 280, 20, DARKGRAY);
     }
 
-    DrawText("[TAB] SAVE & EXIT", 150, GetScreenHeight() - 150, 20, DARKGREEN);
+    DrawText("[TAB] SAVE & EXIT", 150, SCREEN_HEIGHT - 150, 20, DARKGREEN);
     
     // Scanlines
-    for(int i=0; i<GetScreenHeight(); i+=4) {
-        DrawLine(0, i, GetScreenWidth(), i, Fade(GREEN, 0.1f));
+    for(int i=0; i<SCREEN_HEIGHT; i+=4) {
+        DrawLine(0, i, SCREEN_WIDTH, i, Fade(GREEN, 0.1f));
     }
 }

@@ -6,7 +6,6 @@ set PATH=C:\raylib\w64devkit\bin;%PATH%
 
 echo Compiling Segfault Engine...
 
-:: Added src/options.c to the list below
 gcc src/main.c src/terminal.c src/dive.c src/story.c src/options.c src/episodes/ep1.c -o game.exe -O2 -Wall -I C:\raylib\raylib\src -L C:\raylib\raylib\src -lraylib -lopengl32 -lgdi32 -lwinmm
 
 if %errorlevel% equ 0 (

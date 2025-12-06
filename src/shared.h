@@ -17,18 +17,18 @@
 
 // --- STATES ---
 typedef enum GameState {
-    STATE_OPTIONS,
     STATE_TERMINAL,          
     STATE_READING_EMAIL,     
+    STATE_OPTIONS,              // <--- NEW: Options Menu
     STATE_STORY,             
     
-    STATE_TRANSIT_TO_VIEW,      // Fly IN
-    STATE_VIEW,                 // Satellite Mode
-    STATE_CUTSCENE_WALK,        // MC Walk
-    STATE_QTE,                  // Repair
-    STATE_TRANSIT_BACK_TO_VIEW, // Fly OUT <--- NEW!
+    STATE_TRANSIT_TO_VIEW,      
+    STATE_VIEW,                 
+    STATE_CUTSCENE_WALK,        
+    STATE_QTE,                  
+    STATE_TRANSIT_BACK_TO_VIEW, 
     
-    STATE_EXITING_SIMULATION,   // Mission Complete fade
+    STATE_EXITING_SIMULATION,   
     STATE_COMPLETE           
 } GameState;
 
@@ -57,6 +57,21 @@ static inline float EaseOut(float t) {
 
 static inline float GetRandomFloat(float min, float max) {
     return min + ((float)GetRandomValue(0, 10000) / 10000.0f) * (max - min);
+}
+
+// --- SCREEN SCALING GLOBALS ---
+// Defined in main.c, used by dive.c to fix mouse input
+extern float gameScale;
+extern float gameOffsetX;
+extern float gameOffsetY;
+
+// Helper to get mouse coordinates relative to the virtual 1280x720 screen
+static inline Vector2 GetVirtualMouse() {
+    Vector2 m = GetMousePosition();
+    return (Vector2){ 
+        (m.x - gameOffsetX) / gameScale, 
+        (m.y - gameOffsetY) / gameScale 
+    };
 }
 
 #endif
