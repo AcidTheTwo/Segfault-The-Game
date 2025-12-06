@@ -4,6 +4,7 @@
 #include "raylib.h"
 #include "raymath.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 // --- CONFIG ---
 #define MAX_GLITCHES 3
@@ -13,6 +14,7 @@
 typedef enum GameState {
     STATE_TERMINAL,          // Menu
     STATE_READING_EMAIL,     // Reading
+    STATE_STORY,             // <--- NEW: Added this!
     STATE_TRANSIT_TO_VIEW,   // Flying to map
     STATE_VIEW,              // Satellite Map
     STATE_TRANSIT_TO_INSPECT,// Zooming in
@@ -37,7 +39,6 @@ typedef struct Email {
 } Email;
 
 // --- HELPER MATH ---
-// (We define them static inline so we can use them in multiple files)
 static inline float EaseOut(float t) { return t * (2.0f - t); }
 static inline float GetRandomFloat(float min, float max) {
     return min + ((float)GetRandomValue(0, 10000) / 10000.0f) * (max - min);

@@ -1,13 +1,57 @@
 #include "terminal.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h> // Required for malloc/atoi
 
-// Private variables for this module
 static Email inbox[MAX_EMAILS];
 static int selectedEmailIndex = 0;
 
-void InitTerminal(void) {
-    inbox[0] = (Email){ "HR_Bot", "Paycheck Delayed", "Due to server instability, payments are delayed.", false, false };
-    inbox[1] = (Email){ "Client: Stirling", "TICKET #9092", "My daughter's birthday memory is corrupted.\nPlease fix it.", false, true };
-    inbox[2] = (Email){ "UNKNOWN", ">> SEGFAULT <<", "They deleted the audio.\nFind out why.", false, false };
+// --- FILE LOADING SYSTEM ---
+Email LoadEmailFromFile(const char* filename) {
+    Email newEmail = {0}; 
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        newEmail.sender = "SYSTEM ERROR";
+        newEmail.subject = "FILE NOT FOUND";
+        newEmail.body = "Error loading data.";
+        return newEmail;
+    }
+
+    char buffer[256];
+    if (fgets(buffer, 256, file)) {
+        buffer[strcspn(buffer, "\n")] = 0;
+        newEmail.sender = strdup(buffer); 
+    }
+    if (fgets(buffer, 256, file)) {
+        buffer[strcspn(buffer, "\n")] = 0;
+        newEmail.subject = strdup(buffer);
+    }
+    if (fgets(buffer, 256, file)) {
+        newEmail.isMissionTrigger = (atoi(buffer) == 1);
+    }
+
+    char *bodyBuffer = (char*)malloc(1024); 
+    bodyBuffer[0] = '\0'; 
+    while (fgets(buffer, 256, file)) {
+        strcat(bodyBuffer, buffer); 
+    }
+    newEmail.body = bodyBuffer;
+    newEmail.isRead = false;
+
+    fclose(file);
+    return newEmail;
+}
+
+// --- THE FIX IS HERE ---
+// Ensure this matches the header: void InitTerminal(int episodeID)
+void InitTerminal(int episodeID) {
+    char filepath[64];
+
+    for (int i = 0; i < MAX_EMAILS; i++) {
+        // Load "assets/ep1_email_0.txt", etc.
+        sprintf(filepath, "assets/ep%d_email_%d.txt", episodeID, i);
+        inbox[i] = LoadEmailFromFile(filepath);
+    }
 }
 
 void UpdateDrawTerminal(GameState *currentState, bool *missionUnlocked) {
@@ -20,11 +64,6 @@ void UpdateDrawTerminal(GameState *currentState, bool *missionUnlocked) {
             *currentState = STATE_READING_EMAIL;
             inbox[selectedEmailIndex].isRead = true;
             if (inbox[selectedEmailIndex].isMissionTrigger) *missionUnlocked = true;
-        }
-        
-        // Start Mission Trigger
-        if (IsKeyPressed(KEY_SPACE) && *missionUnlocked) {
-            *currentState = STATE_TRANSIT_TO_VIEW;
         }
     }
     else if (*currentState == STATE_READING_EMAIL) {
@@ -42,12 +81,18 @@ void UpdateDrawTerminal(GameState *currentState, bool *missionUnlocked) {
             if (!inbox[i].isRead) DrawText("[NEW]", 400, 140 + (i*40), 10, RED);
         }
 
+        DrawLine(50, 550, 1230, 550, GREEN);
         if (*missionUnlocked) DrawText("[SPACE] START MISSION", 70, 570, 20, LIME);
         else DrawText("MISSION LOCKED (READ EMAILS)", 70, 570, 20, DARKGRAY);
     }
     else if (*currentState == STATE_READING_EMAIL) {
         DrawRectangleLines(100, 100, 1080, 520, GREEN);
-        DrawText(inbox[selectedEmailIndex].body, 120, 200, 20, WHITE);
+        Email *e = &inbox[selectedEmailIndex];
+        
+        DrawText(TextFormat("FROM: %s", e->sender), 120, 120, 20, GREEN);
+        DrawText(TextFormat("SUBJ: %s", e->subject), 120, 150, 20, LIME);
+        DrawLine(100, 180, 1180, 180, GREEN);
+        DrawText(e->body, 120, 200, 20, WHITE);
         DrawText("[BACKSPACE] RETURN", 120, 580, 20, DARKGREEN);
     }
 }

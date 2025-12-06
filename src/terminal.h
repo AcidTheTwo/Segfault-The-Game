@@ -2,7 +2,8 @@
 #define TERMINAL_H
 #include "shared.h"
 
-void InitTerminal(void);
+// UPDATED: Now accepts int
+void InitTerminal(int episodeID); 
 void UpdateDrawTerminal(GameState *currentState, bool *missionUnlocked);
 
 #endif

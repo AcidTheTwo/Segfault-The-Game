@@ -46,8 +46,7 @@ void DrawActor(Vector3 pos, Color color) {
 // Draws the environment context (The "Stage")
 void DrawCinematicStage() {
     // Draw a subtle floor grid so movement is visible
-    int slices = 20; 
-    float spacing = 1.0f;
+    int slices = 20;
     Color gridColor = Fade(GREEN, 0.1f);
 
     int halfSlices = slices / 2;
