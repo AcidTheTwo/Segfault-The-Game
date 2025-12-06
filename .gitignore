@@ -1,0 +1,19 @@
+# --- Build Artifacts ---
+*.exe
+*.o
+*.obj
+*.dll
+
+# --- Output Folders ---
+Release/
+Debug/
+build/
+
+# --- IDE/Editor Files ---
+.vscode/
+.idea/
+*.swp
+
+# --- OS Junk ---
+Thumbs.db
+Desktop.ini
