@@ -12,14 +12,14 @@
 
 // --- STATES ---
 typedef enum GameState {
-    STATE_TERMINAL,          // Menu
-    STATE_READING_EMAIL,     // Reading
-    STATE_STORY,             // <--- NEW: Added this!
-    STATE_TRANSIT_TO_VIEW,   // Flying to map
-    STATE_VIEW,              // Satellite Map
-    STATE_TRANSIT_TO_INSPECT,// Zooming in
-    STATE_INSPECT,           // Fixing
-    STATE_COMPLETE           // Win
+    STATE_TERMINAL,          
+    STATE_READING_EMAIL,     
+    STATE_STORY,             // <--- ADD THIS LINE
+    STATE_TRANSIT_TO_VIEW,   
+    STATE_VIEW,              
+    STATE_TRANSIT_TO_INSPECT,
+    STATE_INSPECT,           
+    STATE_COMPLETE           
 } GameState;
 
 // --- DATA STRUCTURES ---

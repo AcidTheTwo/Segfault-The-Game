@@ -32,7 +32,6 @@ int main(void) {
 
     while (!WindowShouldClose()) {
         
-        printf("Current State: %d\n", currentState);
         // 1. STORY MODE (Intro / Outro)
         if (currentState == STATE_STORY) {
             bool finished = UpdateDrawStory(&currentState);
