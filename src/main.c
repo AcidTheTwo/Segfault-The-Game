@@ -5,7 +5,7 @@
 
 int main(void) {
     InitWindow(1280, 720, "SEGFAULT: Modular Build");
-    SetTargetFPS(60);
+    SetTargetFPS(1);
 
     // Initial State
     GameState currentState = STATE_TERMINAL;
@@ -28,7 +28,7 @@ int main(void) {
     InitStory(1);    // Load Ep 1 Script
 
     // OPTIONAL: Start with Intro Cutscene instead of Terminal
-    currentState = STATE_STORY; 
+    //currentState = STATE_STORY; 
 
     while (!WindowShouldClose()) {
         

@@ -9,6 +9,11 @@ static int selectedEmailIndex = 0;
 // --- FILE LOADING SYSTEM ---
 Email LoadEmailFromFile(const char* filename) {
     Email newEmail = {0}; 
+    newEmail.sender = strdup("UNKNOWN SENDER");
+    newEmail.subject = strdup("NO SUBJECT");
+    newEmail.body = strdup("No data.");
+    newEmail.isRead = false;
+    newEmail.isMissionTrigger = false;
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         newEmail.sender = "SYSTEM ERROR";
